@@ -1,0 +1,126 @@
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# Description: Build Kernel using GitHub Actions
+# Change from P3TERX
+#
+
+name: Build-poky
+
+on:
+  workflow_dispatch:
+  schedule:
+    #- cron: "36 20 * * 2,6"
+    - cron: "30 17 * * *"
+   # inputs:
+    #  ssh:
+     #   description: 'SSH connection to Actions'
+      #  required: false
+       # default: 'false'
+
+env:
+  UPLOAD_DIR: false
+  UPLOAD_RELEASE: true
+  TZ: Asia/Ho_Chi_Minh
+
+jobs:
+  update_config:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
+        fetch-depth: 0
+
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo -E sed -i~orig -e 's/# deb-src/deb-src/' /etc/apt/sources.list   
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install gawk wget git-core diffstat unzip texinfo gcc-multilib \
+                                    build-essential chrpath socat libsdl1.2-dev xterm python-crypto cpio python python3 \
+                                    python3-pip python3-pexpect xz-utils debianutils iputils-ping libssl-dev
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo mkdir -p /workdir/upload
+        sudo mkdir -P /workdir/build
+        sudo chown $USER:$GROUPS /workdir
+        sudo chown $USER:$GROUPS /workdir/upload
+        sudo chown $USER:$GROUPS /workdir/build
+
+    - name: Update
+      id: update
+      working-directory: /workdir
+      run: |
+        cd /workdir/build
+        export WORK=`pwd`
+        git clone git://git.yoctoproject.org/poky
+        git clone git://git.openembedded.org/meta-openembedded
+        git clone git://git.linaro.org/openembedded/meta-linaro.git
+        git clone git://github.com/renesas-rcar/meta-renesas
+        git clone git://github.com/CogentEmbedded/meta-rcar.git
+        cd $WORK/poky
+        git checkout -b tmp 5e1f52edb7a9f790fb6cb5d96502f3690267c1b1
+        cd $WORK/meta-openembedded
+        git checkout -b tmp 9e60d30669a2ad0598e9abf0cd15ee06b523986b
+        cd $WORK/meta-renesas
+        git checkout -b tmp f6ccae7cfb669937aac221ff5cb6a13b36eff951
+        cd $WORK/meta-rcar
+        git checkout -b v4.1.0-release7 remotes/origin/v4.1.0-release7
+        export PATCH_DIR=$WORK/meta-rcar/meta-rcar-gen3-adas/docs/sample/patch
+        unset PATCH_DIR
+        cd $WORK
+        source poky/oe-init-build-env
+        cp $WORK/meta-rcar/meta-rcar-gen3-adas/docs/sample/conf/condor/poky-gcc/bsp/*.conf ./conf/
+        bitbake-layers add-layer ../meta-rcar/meta-rcar-gen3-adas
+        bitbake core-image-minimal
+        bitbake core-image-minimal -c populate_sdk
+        mv tmp/deploy/sdk/poky-glibc-x86_64-core-image-weston-aarch64-toolchain-*.sh /workdir/upload
+
+        echo "::set-output name=status::success"
+
+    - name: Upload
+      uses: actions/upload-artifact@main
+#       if: steps.compile.outputs.status == 'success' && env.UPLOAD_DIR == 'true'
+      with:
+        name: ${{ env.FILE_DATE }}
+        path: /workdir/upload
+
+    - name: Generate release tag
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
+      run: |
+        echo "::set-output name=release_tag::Poky_$(date +"%Y%m%d%H%M")"
+        touch release.txt
+        echo "::set-output name=status::success"
+    - name: Upload kernel to release
+      uses: softprops/action-gh-release@v1
+#       if: steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+        files: /workdir/upload/*
+
+
+    # - name: Commit files
+    #   continue-on-error: true
+    #   # if: steps.update.outputs.status == 'success'
+    #   run: |
+    #     git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+    #     git config --local user.name "github-actions[bot]"
+    #     git commit -m "Add changes" -a
+
+    # - name: Push changes
+    #   continue-on-error: true
+    #   # if: steps.update.outputs.status == 'success'
+    #   uses: ad-m/github-push-action@master
+    #   with:
+    #     github_token: ${{ secrets.TOKEN }}
+    #     branch: ${{ github.ref }}
