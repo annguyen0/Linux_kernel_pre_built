@@ -9,6 +9,9 @@
 name: Build-poky
 
 on:
+  push:
+    branch:
+      - main
   workflow_dispatch:
   schedule:
     #- cron: "36 20 * * 2,6"
