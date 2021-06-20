@@ -1,0 +1,99 @@
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# Description: Build Kernel using GitHub Actions
+#
+
+name: Update Build config
+
+on:
+  workflow_dispatch:
+    #inputs:
+    #  ssh:
+    #    description: 'SSH connection to Actions'
+    #    required: false
+    #    default: 'false'
+  schedule:
+    - cron: "30 20 * * *"
+    
+env:
+  TZ: Asia/Ho_Chi_Minh
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
+        fetch-depth: 0
+
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo -E sed -i~orig -e 's/# deb-src/deb-src/' /etc/apt/sources.list   
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install bzip2 gawk git patch unzip htop wget curl -y
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo mkdir -p /workdir/upload
+        sudo chown $USER:$GROUPS /workdir
+        sudo chown $USER:$GROUPS /workdir/upload
+        
+    - name: Check for updates
+      id: check
+      run: |
+        config=/home/runner/work/kernel/kernel/config_elrepo
+        action_kernel_ver=$(grep "Linux/x86_64" ${config} | awk -F '[-]' '{print $1}' | awk -F ' ' '{print $3}')
+        kernel_ver=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
+        echo "action_kernel_ver=" $action_kernel_ver
+        echo "kernel_ver=" $kernel_ver
+        if [[ $action_kernel_ver == *"$kernel_ver"* ]]; then
+            echo "::set-output name=status::fail"
+        else
+            echo "::set-output name=status::success"
+        fi
+        
+    - name: Update config
+      id: update
+      if: steps.check.outputs.status == 'success'
+      working-directory: /workdir
+      run: |
+        sudo apt install -y rpm2cpio 
+        elrepo_c7_ver=$(curl -s 'https://elrepo.org/linux/kernel/el7/x86_64/RPMS/?C=N;O=D' | grep 'kernel-ml-headers' | head -n 1 | awk -F '"' '{print $4}' | awk -F '-' '{print $4}')
+        sudo wget https://elrepo.org/linux/kernel/el7/x86_64/RPMS/kernel-ml-$elrepo_c7_ver-1.el7.elrepo.x86_64.rpm
+        sudo rpm2cpio kernel-ml-$elrepo_c7_ver-1.el7.elrepo.x86_64.rpm | cpio -divm
+        cd /workdir/boot
+        elrepo_patch=/home/runner/work/kernel/kernel/elrepo_config.patch
+        config=/home/runner/work/kernel/kernel/config_elrepo
+        sudo patch -p1 < ${elrepo_patch} config-*-1.el7.elrepo.x86_64
+        sudo rm -rf ${config}
+        sudo mv config-*-1.el7.elrepo.x86_64 ${config}
+        echo "::set-output name=status::success"
+        
+    - name: SSH connection to Actions
+      uses: P3TERX/ssh2actions@v1.0.0
+      if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+      env:
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          
+    - name: Commit files
+      continue-on-error: true
+      if: steps.update.outputs.status == 'success'
+      run: |
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git commit -m "Add changes" -a
+    - name: Push changes
+      continue-on-error: true
+      if: steps.update.outputs.status == 'success'
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.TOKEN }}
+        branch: ${{ github.ref }}
