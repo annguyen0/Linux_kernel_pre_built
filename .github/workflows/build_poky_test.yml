@@ -80,11 +80,16 @@ jobs:
         cd $WORK
         source poky/oe-init-build-env
         cp $WORK/meta-rcar/meta-rcar-gen3-adas/docs/sample/conf/condor/poky-gcc/bsp/*.conf ./conf/
+        cd $WORK/build
+        echo "BB_NUMBER_THREADS = \"16\"" >> conf/local.conf
+        echo "PARALLEL_MAKE = \"-j 16\"" >> conf/local.conf
+
         # bitbake-layers add-layer ../meta-rcar/meta-rcar-gen3-adas
         # bitbake core-image-minimal
-        # bitbake core-image-minimal -c populate_sdk
+        bitbake core-image-minimal -c populate_sdk
         bitbake linux-renesas -f -c compile
         bitbake linux-renesas
+        mv tmp/deploy/image/* /workdir/upload
         mv tmp/deploy/sdk/poky-glibc-x86_64-core-image-weston-aarch64-toolchain-*.sh /workdir/upload
 
         echo "::set-output name=status::success"
