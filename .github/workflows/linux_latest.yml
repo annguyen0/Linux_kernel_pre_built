@@ -55,14 +55,14 @@ jobs:
         echo "github_ver=" $github_ver
         echo "kernel_ver=" $kernel_ver
         if [[ $github_ver == *"$kernel_ver"* ]]; then
-            echo "::set-output name=status::fail"
+          echo "::set-output name=status::fail"
         else
-           echo "::set-output name=status::success"
+          echo "::set-output name=status::success"
         fi
     - name: Get source code
       id: code
       working-directory: /workdir
-       if: steps.check.outputs.status == 'success'
+      if: steps.check.outputs.status == 'success'
       run: |
         df -hT $PWD
         kernel_file=$(curl -s https://www.kernel.org/ | grep "torvalds" | head -n 1 | awk -F '"' '{print$2}')
@@ -79,7 +79,7 @@ jobs:
 
     - name: Compile the kernel
       id: compile
-       if: steps.code.outputs.status == 'success'
+      if: steps.code.outputs.status == 'success'
       working-directory: /workdir
       run: |
         kernel_ver=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | head -n 1 | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
@@ -97,7 +97,7 @@ jobs:
 
     - name: Upload
       uses: actions/upload-artifact@main
-       if: steps.compile.outputs.status == 'success' && env.UPLOAD_DIR == 'true'
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_DIR == 'true'
       with:
         name: ${{ env.FILE_DATE }}
         path: /workdir/upload
@@ -112,7 +112,7 @@ jobs:
         echo "::set-output name=status::success"
     - name: Upload kernel to release
       uses: softprops/action-gh-release@v1
-       if: steps.tag.outputs.status == 'success' && !cancelled()
+      if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
         GITHUB_TOKEN: ${{ secrets.TOKEN }}
       with:
