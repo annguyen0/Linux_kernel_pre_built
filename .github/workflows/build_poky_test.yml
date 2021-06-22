@@ -10,12 +10,12 @@ name: Build-poky
 
 on:
   push:
-    branch:
+    branches:
       - main
   workflow_dispatch:
-  schedule:
+  #schedule:
     #- cron: "36 20 * * 2,6"
-    - cron: "30 17 * * *"
+    #- cron: "30 17 * * *"
    # inputs:
     #  ssh:
      #   description: 'SSH connection to Actions'
@@ -86,11 +86,11 @@ jobs:
 
         # bitbake-layers add-layer ../meta-rcar/meta-rcar-gen3-adas
         # bitbake core-image-minimal
-        bitbake core-image-minimal -c populate_sdk
+        #bitbake core-image-minimal -c populate_sdk
         bitbake linux-renesas -f -c compile
         bitbake linux-renesas
         mv tmp/deploy/image/* /workdir/upload
-        mv tmp/deploy/sdk/poky-glibc-x86_64-core-image-weston-aarch64-toolchain-*.sh /workdir/upload
+        #mv tmp/deploy/sdk/poky-glibc-x86_64-core-image-weston-aarch64-toolchain-*.sh /workdir/upload
 
         echo "::set-output name=status::success"
 
