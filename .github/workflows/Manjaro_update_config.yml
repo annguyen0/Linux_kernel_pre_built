@@ -9,10 +9,10 @@
 name: Manjaro update config
 
 on:
-  workflow_dispatch:
+#   workflow_dispatch:
   schedule:
     #- cron: "36 20 * * 2,6"
-    - cron: "30 17 * * *"
+    - cron: "45 14 * * *"
    # inputs:
     #  ssh:
      #   description: 'SSH connection to Actions'
