@@ -9,7 +9,7 @@
 name: Linux Kernel Latest
 
 on:
-  workflow_dispatch:
+#   workflow_dispatch:
   schedule:
     #- cron: "36 20 * * 2,6"
     - cron: "45 14 * * *"
@@ -54,7 +54,7 @@ jobs:
         kernel_ver=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | head -n 1 | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
         echo "github_ver=" $github_ver
         echo "kernel_ver=" $kernel_ver
-        if [[ $github_ver == $kernel_ver ]]; then
+        if [[ $github_ver == *"$kernel_ver"* ]]; then
           echo "::set-output name=status::fail"
         else
           echo "::set-output name=status::success"
@@ -65,17 +65,10 @@ jobs:
       if: steps.check.outputs.status == 'success'
       run: |
         df -hT $PWD
+        kernel_file=$(curl -s https://www.kernel.org/ | grep "torvalds" | head -n 1 | awk -F '"' '{print$2}')
         kernel_ver=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | head -n 1 | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
-        # kernel_file=$(curl -s https://www.kernel.org/ | grep "torvalds" | head -n 1 | awk -F '"' '{print$2}')
-        kernel_file=$(curl -s https://www.kernel.org/ | grep ${kernel_ver} | grep "gz")
-        if [ "X$kernel_file" == "X" ]; then
-          kernel_file=$(curl -s https://www.kernel.org/  | grep $kernel_ver | grep "xz" | head -n 1 | awk -F '"' '{print$2}')
-          wget -O kernel.tar.xz $kernel_file
-          tar -Jxvf kernel.tar.xz -C /workdir && cd /workdir/linux-$kernel_ver
-        else
-          wget -O kernel.tar.gz $kernel_file
-          tar -xvf kernel.tar.gz -C /workdir && cd /workdir/linux-$kernel_ver
-        fi
+        wget -O kernel.tar.gz $kernel_file
+        tar -xvf kernel.tar.gz -C /workdir && cd /workdir/linux-$kernel_ver
         echo "::set-output name=status::success"
     - name: SSH connection to Actions
       uses: P3TERX/ssh2actions@v1.0.0
