@@ -10,9 +10,9 @@ name: Linux Kernel Latest
 
 on:
   workflow_dispatch:
-  # schedule:
+  schedule:
     #- cron: "36 20 * * 2,6"
-    # - cron: "45 14 * * *"
+    - cron: "45 14 * * *"
    # inputs:
     #  ssh:
      #   description: 'SSH connection to Actions'
@@ -22,7 +22,6 @@ on:
 env:
   UPLOAD_DIR: false
   UPLOAD_RELEASE: true
-  ACTIONS_ALLOW_UNSECURE_COMMANDS: true
   TZ: Asia/Ho_Chi_Minh
 
 jobs:
@@ -48,29 +47,32 @@ jobs:
         sudo mkdir -p /workdir/upload
         sudo chown $USER:$GROUPS /workdir
         sudo chown $USER:$GROUPS /workdir/upload
-
     - name: Check for updates
       id: check
       run: |
-        kernel_list=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
-        github_tags=$(curl -s https://api.github.com/repos/anphucnguyen/Linux_kernel_pre_built/tags | grep "name" | awk -F '"' '{print$4}')
-        echo "$kernel_list" > /workdir/kernel_list.txt
-        echo "$github_tags" > /workdir/github_tags.txt
-        kernel_list="/workdir/kernel_list.txt"
-        github_tags="/workdir/github_tags.txt"
-        while IFS= read -r github_ver; do while IFS= read -r kernel_ver; do if [ $github_ver == $kernel_ver ] || [ $kernel_ver == *"next"* ]; then echo "::set-output name=status::fail"; else echo "::set-output name=status::success" && echo "::set-env name=LINUX_VER::$kernel_ver"; break 2; fi; done < "$kernel_list"; done < "$github_tags"
-
+        github_ver=$(curl -s https://api.github.com/repos/anphucnguyen/Linux_kernel_pre_built/tags | grep "name"| head -n 1 | awk -F '"' '{print$4}')
+        kernel_ver=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | head -n 1 | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
+        echo "github_ver=" $github_ver
+        echo "kernel_ver=" $kernel_ver
+        if [[ $github_ver == $kernel_ver ]]; then
+          echo "::set-output name=status::fail"
+        else
+          echo "::set-output name=status::success"
+        fi
     - name: Get source code
       id: code
       working-directory: /workdir
       if: steps.check.outputs.status == 'success'
       run: |
         df -hT $PWD
-        kernel_ver=${{ env.LINUX_VER }}
-        kernel_file=$(curl -s https://www.kernel.org/ | grep $kernel_ver | grep "gz")
-        if [ "X$kernel_file" == "X" ]; then kernel_file=$(curl -s https://www.kernel.org/  | grep $kernel_ver | grep "xz" | head -n 1 | awk -F '"' '{print$2}') && cd /workdir && wget -O kernel.tar.xz $kernel_file && tar -Jxvf kernel.tar.xz -C /workdir && cd /workdir/linux-$kernel_ver; else wget -O kernel.tar.gz $kernel_file && tar -xvf kernel.tar.gz -C /workdir && cd /workdir/linux-$kernel_ver; fi
+        kernel_ver=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | head -n 1 | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
+        kernel_file=$(curl -s https://www.kernel.org/ | grep ${kernel_ver} | grep "gz")
+        if [ "X$kernel_file" == "X" ]; then
+          kernel_file=$(curl -s https://www.kernel.org/  | grep $kernel_ver | grep "xz" | head -n 1 | awk -F '"' '{print$2}') && wget -O kernel.tar.xz $kernel_file && tar -Jxvf kernel.tar.xz -C /workdir && cd /workdir/linux-$kernel_ver
+        else
+          wget -O kernel.tar.gz $kernel_file && tar -xvf kernel.tar.gz -C /workdir && cd /workdir/linux-$kernel_ver
+        fi
         echo "::set-output name=status::success"
-  
     - name: SSH connection to Actions
       uses: P3TERX/ssh2actions@v1.0.0
       if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
@@ -83,14 +85,15 @@ jobs:
       if: steps.code.outputs.status == 'success'
       working-directory: /workdir
       run: |
-        cd linux-${{ env.LINUX_VER }}
+        kernel_ver=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | head -n 1 | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
+        cd linux-$kernel_ver
         wget -O .config https://raw.githubusercontent.com/anphucnguyen/Linux_kernel_pre_built/main/Build_config
         sed -ri '/CONFIG_SYSTEM_TRUSTED_KEYS/s/=.+/=""/g' .config && scripts/config --disable MODULE_SIG && scripts/config --disable DEBUG_INFO
         echo -e "16 threads compile"
         sudo time make -j16 deb-pkg
         cd /workdir && mv *.deb /workdir/upload
         echo "::set-output name=status::success"
-        echo "FILE_DATE=${{ env.LINUX_VER }}" >> $GITHUB_ENV   
+        echo "FILE_DATE=${kernel_ver}" >> $GITHUB_ENV   
     - name: Check space usage
       if: (!cancelled()) && steps.compile.outputs.status == 'success'
       run: df -hT
@@ -106,7 +109,8 @@ jobs:
       id: tag
       if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        echo "::set-output name=release_tag::${{ env.LINUX_VER }}"
+        kernel_ver=$(curl -s https://www.kernel.org/ | grep "<td><strong>" | head -n 1 | awk -F '>' '{print$3}' | awk -F '<' '{print$1}')
+        echo "::set-output name=release_tag::${kernel_ver}"
         touch release.txt
         echo "::set-output name=status::success"
     - name: Upload kernel to release
