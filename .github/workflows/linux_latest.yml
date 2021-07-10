@@ -9,7 +9,7 @@
 name: Linux Kernel Latest
 
 on:
-#   workflow_dispatch:
+  workflow_dispatch:
   schedule:
     #- cron: "36 20 * * 2,6"
     - cron: "45 14 * * *"
