@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/x86_64 5.14.6-1.el7.elrepo.x86_64 Kernel Configuration
+# Linux/x86_64 5.14.7-1.el7.elrepo.x86_64 Kernel Configuration
 #
 CONFIG_CC_VERSION_TEXT="gcc (GCC) 9.3.1 20200408 (Red Hat 9.3.1-2)"
 CONFIG_CC_IS_GCC=y
@@ -1201,7 +1201,7 @@ CONFIG_NET_PTP_CLASSIFY=y
 CONFIG_NETWORK_PHY_TIMESTAMPING=y
 CONFIG_NETFILTER=y
 CONFIG_NETFILTER_ADVANCED=y
-CONFIG_BRIDGE_NETFILTER=y
+CONFIG_BRIDGE_NETFILTER=m
 
 #
 # Core Netfilter Configuration
