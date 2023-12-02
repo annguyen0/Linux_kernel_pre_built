@@ -55,7 +55,7 @@ jobs:
       run: |
         # echo "$(curl https://gitlab.manjaro.org/packages/core/linux510/-/raw/master/config)" > config
         # echo "$(curl https://gitlab.manjaro.org/packages/core/linux510/-/raw/master/config.anbox)" > config.anbox
-        wget -O config https://gitlab.manjaro.org/packages/core/linux515/-/raw/master/config
+        wget -O config https://gitlab.manjaro.org/packages/core/linux66/-/raw/master/config
         #wget -O config.anbox https://gitlab.manjaro.org/packages/core/linux510/-/raw/master/config.anbox
         config=/home/runner/work/Linux_kernel_pre_built/Linux_kernel_pre_built/config_manjaro
         sudo rm -rf ${config}
